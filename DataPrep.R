@@ -106,7 +106,7 @@ countiesNames <- rbind(countiesNames, Missing2019)
 df <- merge(df, countiesNames, by="STCTYNUM")
 
 ## Make LFO consistent
-LFO2019 <- df %>% filter(YEAR == 2019) %>% 
+industries <- df %>% filter(YEAR == 2019) %>% 
   group_by(NAIC) %>%
   summarise(
     INDUSTRY = unique(LFO),
@@ -116,8 +116,8 @@ LFO2019 <- df %>% filter(YEAR == 2019) %>%
 # Need to trim the whitespace off NAIC.
 df$NAIC <- str_trim(df$NAIC, side="both")
 
-#df<-merge(df, LFO2019, by="NAIC")
-df<-merge(df, LFO2019, by="NAIC",all=TRUE)
+#df<-merge(df, industries, by="NAIC")
+df<-merge(df, industries, by="NAIC",all=TRUE)
 
 ## Add a date type field for the year. Maybe 3/15/YEAR
 
