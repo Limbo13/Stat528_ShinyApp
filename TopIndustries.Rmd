@@ -473,7 +473,7 @@ cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
 
 ToPlot %>% 
   mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
-  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC))+
+  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC)) +
   scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
   geom_line(size=1.25, alpha=.6) +
   scale_x_continuous(expand=c(0,0,0,2)) +
@@ -555,7 +555,29 @@ ToPlot %>%
   labs(title="United States: Average Pay Rate by Industry (in 2019 dollars)", x="Year", y="Avg. Pay Rate")
 
 ```
+# Entire US: Average Employees per Establishment
 
+```{r}
+
+# All States
+ToPlot <- df %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(EERate = sum(EMP)/sum(ESTAB)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=EERate, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=comma) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title="United States: Average Employees per Establishment by Industry", x="Year", y="Employees per Establishment")
+
+```
 
 # State Line plots
 
@@ -574,7 +596,7 @@ cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
 
 ToPlot %>% 
   mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
-  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC))+
+  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC)) +
   scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
   geom_line(size=1.25, alpha=.6) +
   scale_x_continuous(expand=c(0,0,0,2)) +
@@ -659,4 +681,3 @@ ToPlot %>%
   labs(title=paste(thisState,"Average Pay Rate by Industry (in 2019 dollars)",sep=": "), x="Year", y="Avg. Pay Rate")
 
 ```
-
