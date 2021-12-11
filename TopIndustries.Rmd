@@ -33,10 +33,6 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 library(lubridate)
-library(ggplot2)
-
-
-
 
 # Create a not in operator:
 `%notin%` <- Negate(`%in%`)
@@ -113,7 +109,7 @@ countiesNames <- rbind(countiesNames, Missing2019)
 df <- merge(df, countiesNames, by="STCTYNUM")
 
 ## Make LFO consistent
-LFO2019 <- df %>% filter(YEAR == 2019) %>% 
+industries <- df %>% filter(YEAR == 2019) %>% 
   group_by(NAIC) %>%
   summarise(
     INDUSTRY = unique(LFO),
@@ -123,8 +119,8 @@ LFO2019 <- df %>% filter(YEAR == 2019) %>%
 # Need to trim the whitespace off NAIC.
 df$NAIC <- str_trim(df$NAIC, side="both")
 
-#df<-merge(df, LFO2019, by="NAIC")
-df<-merge(df, LFO2019, by="NAIC",all=TRUE)
+#df<-merge(df, industries, by="NAIC")
+df<-merge(df, industries, by="NAIC",all=TRUE)
 
 ## Add a date type field for the year. Maybe 3/15/YEAR
 
@@ -203,16 +199,57 @@ str(df)
 
 ################################################################################
 
-## usmap Mapping
-You'll need to install the package: usmap
+
+# Libraries for plotting
+
+
 
 ```{r}
+library(ggplot2)
+library(ggrepel)
 library(usmap)
 # https://rdrr.io/cran/usmap/f/vignettes/mapping.Rmd
 # https://rdrr.io/cran/usmap/f/vignettes/advanced-mapping.Rmd
+
+library(scales)
+#?scales::trans_new
 ```
 
+# Setup Color pallate for industries
 
+```{r}
+# Setup plotting colors by NAIC code
+
+industries<-industries %>% arrange(INDUSTRY)
+
+plotColor<-c(
+"Accommodation and food services"="red",
+"Administrative and support and waste management and remediation services"="blue",
+"Agriculture, forestry, fishing and hunting"="pink",
+"Arts, entertainment, and recreation"="MediumVioletRed",
+"Construction"="Salmon",
+"Educational services"="BlueViolet",
+"Finance and insurance"="YellowGreen",
+"Health care and social assistance"="SeaGreen",
+"Industries not classified"="Tan",
+"Information"="maroon",
+"Management of companies and enterprises"="limegreen",
+"Manufacturing"="DarkOliveGreen",
+"Mining, quarrying, and oil and gas extraction"="springgreen",
+"Other services (except public administration)"="orange",
+"Professional, scientific, and technical services"="turquoise",
+"Real estate and rental and leasing"="SteelBlue",
+"Retail trade"="khaki",
+"Transportation and warehousing"="orchid",
+"Utilities"="DarkBlue",
+"Wholesale trade"="RosyBrown"
+)
+industries<- cbind(industries, plotColor)
+
+```
+
+## usmap Mapping
+You'll need to install the package: usmap
 
 ```{r}
 ## SKIP ##
@@ -226,68 +263,400 @@ plot_usmap(regions = "counties") +
        subtitle = "This is a blank map of the counties of the United States.") + 
   theme(panel.background = element_rect(color = "black", fill = "lightblue"))
 
-# combine our county data with the map data
-# map_with_data()
-# https://rdrr.io/cran/usmap/man/map_with_data.html
-# I didn't need to do this
 ```
 
+# US CHOROPLETHS
 
+## Top Annual Payroll by Industry by state by year
 
 ```{r}
 
-# 2019 Top Annual Payroll by Industry by state by year
+# Top Annual Payroll by Industry by state by year
 #Inflation Adj
-TopPayAnnState2019 <- df %>% filter(YEAR==2019) %>%
+
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear) %>%
   group_by(FIPS_ST, INDUSTRY) %>%
   summarise(TotalPayAnn = sum(PAYANN_19DOL)) %>%
-  filter(TotalPayAnn == max(TotalPayAnn))
-TopPayAnnState2019<-rename(TopPayAnnState2019, "fips"="FIPS_ST")
+  filter(TotalPayAnn == max(TotalPayAnn)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_ST")
 
-plot_usmap(data = TopPayAnnState2019, values="INDUSTRY") + 
-  scale_fill_discrete(name="Industry")+
-  labs(title = "2019 Top Industry by Annual Payroll in Each State") + theme(legend.position = "right")
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY") + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Annual Payroll in Each State",sep=" ")) + 
+  theme(legend.position = "right")
 
 ```
 
+# Top Number of Employees by Industry by state by year
+
 ```{r}
-# 2005 Top Annual Payroll by Industry by state by year
-#Inflation Adj
-TopPayAnnState2005 <- df %>% filter(YEAR==2005) %>%
+
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear) %>%
   group_by(FIPS_ST, INDUSTRY) %>%
-  summarise(TotalPayAnn = sum(PAYANN_19DOL)) %>%
-  filter(TotalPayAnn == max(TotalPayAnn))
-TopPayAnnState2005<-rename(TopPayAnnState2005, "fips"="FIPS_ST")
+  summarise(TotalEmp = sum(EMP)) %>%
+  filter(TotalEmp == max(TotalEmp)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_ST")
 
-plot_usmap(data = TopPayAnnState2005, values="INDUSTRY") + 
-  scale_fill_discrete(name="Industry")+
-  labs(title = "2005 Top Industry by Annual Payroll in Each State") + theme(legend.position = "right")
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY") + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Number of Employees in Each State",sep=" ")) + 
+  theme(legend.position = "right")
+
 ```
+# Top Number of Establishments by Industry by state by year
 
 ```{r}
-# 2019 Top Annual Payroll by Industry in Iowa by County
-#Inflation Adj
-TopPayAnnIACty2019 <- df %>% filter(YEAR==2019, STATE=="Iowa") %>%
+
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear) %>%
+  group_by(FIPS_ST, INDUSTRY) %>%
+  summarise(TotalEstab = sum(ESTAB)) %>%
+  filter(TotalEstab == max(TotalEstab)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_ST")
+
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY") + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Number of Establishments in Each State",sep=" ")) + 
+  theme(legend.position = "right")
+
+```
+
+# Highest Pay rate by Industry by state by year
+
+```{r}
+
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear) %>%
+  group_by(FIPS_ST, INDUSTRY) %>%
+  summarise(PayRate = sum(PAYANN_19DOL)/sum(EMP)) %>%
+  filter(PayRate == max(PayRate)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_ST")
+
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY") + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Highest Pay rate by Industry in Each State",sep=" ")) + 
+  theme(legend.position = "right")
+
+```
+
+# STATE CHOROPLETHS
+
+# Top Annual Payroll by Industry in State by year
+
+```{r}
+thisState = "Iowa" # Just change this line to customize for state
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear, STATE==thisState) %>%
   group_by(FIPS_CTY, INDUSTRY) %>%
   summarise(TotalPayAnn = sum(PAYANN_19DOL)) %>%
-  filter(TotalPayAnn == max(TotalPayAnn))
-TopPayAnnIACty2019<-rename(TopPayAnnIACty2019, "fips"="FIPS_CTY")
+  filter(TotalPayAnn == max(TotalPayAnn)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_CTY")
 
-plot_usmap(data = TopPayAnnIACty2019, values="INDUSTRY", include=c("Iowa")) + 
-  scale_fill_discrete(name="Industry")+
-  labs(title = "2019 Top Industry by Annual Payroll in Iowa") + theme(legend.position = "right")
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY", include=c("Iowa")) + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Annual Payroll in", thisState,sep=" ")) + 
+  theme(legend.position = "right")
+
 ```
-
-# Example with Continuous data
-This doesn't use our data but a built in dataset.
+# Highest Pay rate by Industry in Each County by year
 
 ```{r}
-# Example with continuous data
-plot_usmap(data = statepop, values = "pop_2015", color = "red") + 
-  scale_fill_continuous(
-    low = "white", high = "red", name = "Population (2015)", label = scales::comma
-  ) + theme(legend.position = "right")
+thisState = "Iowa" # Just change this line to customize for state
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear, STATE==thisState) %>%
+  group_by(FIPS_CTY, INDUSTRY) %>%
+  summarise(PayRate = sum(PAYANN_19DOL)/sum(EMP)) %>%
+  filter(PayRate == max(PayRate)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_CTY")
+
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY", include=c("Iowa")) + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Highest Pay rate by Industry in", thisState,sep=" ")) + 
+  theme(legend.position = "right")
+
+```
+
+# Top Number of Establishments by Industry in a State by year
+
+```{r}
+thisState = "Iowa" # Just change this line to customize for state
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear, STATE==thisState) %>%
+  group_by(FIPS_CTY, INDUSTRY) %>%
+  summarise(TotalEstab = sum(ESTAB)) %>%
+  filter(TotalEstab == max(TotalEstab)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_CTY")
+
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY", include=c("Iowa")) + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Number of Establishments in", thisState,sep=" ")) + 
+  theme(legend.position = "right")
+
+```
+
+# Top Number of Establishments by Industry in a State by year
+Staci
+
+```{r}
+thisState = "Iowa" # Just change this line to customize for state
+thisYear = 2019 # Just change this line to customize for year
+
+ToPlot <- df %>% filter(YEAR==thisYear, STATE==thisState) %>%
+  group_by(FIPS_CTY, INDUSTRY) %>%
+  summarise(TotalEstab = sum(ESTAB)) %>%
+  filter(TotalEstab == max(TotalEstab)) %>% 
+  merge(industries)
+ToPlot<-rename(ToPlot, "fips"="FIPS_CTY")
+
+cols<-ToPlot%>%
+  group_by(INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+plot_usmap(data = ToPlot, values="INDUSTRY", include=c("Iowa")) + 
+  scale_fill_manual(values=cols$pc, name="Industries", labels=cols$INDUSTRY) +
+  labs(title = paste(as.character(thisYear),"Top Industry by Number of Establishments in", thisState,sep=" ")) + 
+  theme(legend.position = "right")
+
+```
+
+# Line graphs of Annual Payroll by Industry
+## For best results run the plot in the console window or an r script to be able to export or zoom into the plot
+Export at 1200 x 800 to fit 2 plots per page
+
+## Entire US - Annual Payroll by Industry
+```{r}
+
+# All States
+# For best results run the plot in the console window or an r script to be able to export or zoom into the plot
+ToPlot <- df %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalPayAnn = sum(PAYANN_19DOL)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=dollar) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title="United States: Total Annual Payroll by Industry (in 2019 dollars)", x="Year", y="Total Annual Payroll")
+
+```
+
+## Entire US - Number Employed by Industry
+```{r}
+
+# All States
+# For best results run the plot in the console window or an r script to be able to export or zoom into the plot
+ToPlot <- df %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalEmp = sum(EMP)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalEmp, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=comma) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title="United States: Total Number Employed by Industry", x="Year", y="Employees")
+
+```
+
+## Entire US - Number of Establishments by Industry
+
+```{r}
+
+# All States
+# For best results run the plot in the console window or an r script to be able to export or zoom into the plot
+ToPlot <- df %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalEstab = sum(ESTAB)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalEstab, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=comma) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title="United States: Total Number Establishments by Industry", x="Year", y="Establishments")
+
+```
+
+# Entire US: Average Pay Rates
+
+```{r}
+
+# All States
+ToPlot <- df %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(PayRate = sum(PAYANN_19DOL)/sum(EMP)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=PayRate, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=dollar) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title="United States: Average Pay Rate by Industry (in 2019 dollars)", x="Year", y="Avg. Pay Rate")
+
 ```
 
 
+# State Line plots
+
+## One state - Annual Payroll by Industry (in 2019 dollars)
+
+```{r}
+
+thisState ="Iowa"  #Only need to change this line to customize to a state
+
+ToPlot <- df %>% filter(STATE==thisState) %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalPayAnn = sum(PAYANN_19DOL)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalPayAnn, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=dollar) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title=paste(thisState,"Total Annual Payroll by Industry (in 2019 dollars)",sep=": "), x="Year", y="Total Annual Payroll")
+
+```
+
+## One State - Number Employed by Industry
+```{r}
+
+thisState ="Iowa"  #Only need to change this line to customize to a state
+
+ToPlot <- df %>% filter(STATE==thisState) %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalEmp = sum(EMP)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalEmp, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=comma) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title=paste(thisState,"Total Number Employed by Industry",sep=": "), x="Year", y="Employees")
+
+```
+
+
+## One State - Number of Establishments by Industry
+
+```{r}
+
+thisState ="Iowa"  #Only need to change this line to customize to a state
+
+ToPlot <- df %>% filter(STATE==thisState) %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(TotalEstab = sum(ESTAB)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=TotalEstab, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=comma) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title=paste(thisState,"Total Number Establishments by Industry",sep=": "), x="Year", y="Establishments")
+
+```
+
+
+# One State: Average Pay Rates
+
+```{r}
+
+thisState ="Iowa"  #Only need to change this line to customize to a state
+
+ToPlot <- df %>% filter(STATE==thisState) %>%
+  group_by(YEAR, NAIC) %>%
+  summarise(PayRate = sum(PAYANN_19DOL)/sum(EMP)) %>% 
+  merge(industries)
+
+cols<-ToPlot%>%group_by(NAIC,INDUSTRY)%>%summarize(pc=unique(plotColor))
+
+ToPlot %>% 
+  mutate(label = if_else(YEAR == 2019, as.character(NAIC), NA_character_)) %>%
+  ggplot(aes(x=YEAR, y=PayRate, color=NAIC))+
+  scale_colour_manual(values=cols$pc, name="Industries", labels=c(paste(cols$NAIC,cols$INDUSTRY,sep=": "))) +
+  geom_line(size=1.25, alpha=.6) +
+  scale_x_continuous(expand=c(0,0,0,2)) +
+  scale_y_continuous(labels=dollar) +
+  geom_label_repel(aes(label = label), nudge_x=2, na.rm=TRUE) +
+  labs(title=paste(thisState,"Average Pay Rate by Industry (in 2019 dollars)",sep=": "), x="Year", y="Avg. Pay Rate")
+
+```
 
